@@ -40,6 +40,36 @@ enum FolderAccess {
     }
 }
 
+/// Folder listing for the scanner. Folders served by a File Provider
+/// (iCloud Drive, "Sul mio iPhone", Drive, OneDrive…) can be "dataless" until
+/// someone reads them through file coordination: when the direct listing
+/// fails or comes back empty, list again inside an NSFileCoordinator read.
+enum FolderLister {
+    static func list(_ url: URL) throws -> [URL] {
+        var firstError: Error?
+        do {
+            let direct = try DirectoryScanner.defaultLister(url)
+            if !direct.isEmpty { return direct }
+        } catch {
+            firstError = error
+        }
+        var result: [URL]?
+        var innerError: Error?
+        var coordinationError: NSError?
+        NSFileCoordinator(filePresenter: nil).coordinate(readingItemAt: url, options: [], error: &coordinationError) { readURL in
+            do {
+                // Keep the original path so the children stay under the security scope.
+                let names = try FileManager.default.contentsOfDirectory(atPath: readURL.path)
+                result = names.map { url.appendingPathComponent($0) }
+            } catch {
+                innerError = error
+            }
+        }
+        if let result { return result }
+        throw innerError ?? coordinationError ?? firstError ?? CocoaError(.fileReadUnknown)
+    }
+}
+
 enum DeviceInfo {
     /// Capacity of the iPhone volume, like Settings › General › iPhone Storage.
     static func disk() -> DiskUsage? {

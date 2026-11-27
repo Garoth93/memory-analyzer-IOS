@@ -48,6 +48,63 @@ final class ScannerAndStoreTests: XCTestCase {
         XCTAssertEqual(reports.last?.bytes, 73_010)
     }
 
+    func testUnlistableSubfolderIsMarked() throws {
+        try write("ok/a.txt", bytes: 5)
+        try write("locked/b.txt", bytes: 7)
+        let locked = dir.appendingPathComponent("locked").standardizedFileURL.path
+        let scanner = DirectoryScanner(lister: { url in
+            if url.standardizedFileURL.path == locked { throw CocoaError(.fileReadNoPermission) }
+            return try DirectoryScanner.defaultLister(url)
+        })
+        let root = try scanner.scan(dir)
+        XCTAssertEqual(root.size, 5)
+        let node = root.children.first { $0.name == "locked" }!
+        XCTAssertTrue(node.isContainer)
+        XCTAssertEqual(node.detail, DirectoryScanner.unreadableDetail)
+        XCTAssertEqual(root.unreadableFolders, 1)
+        XCTAssertEqual(scanner.lastProgress.unreadable, 1)
+        XCTAssertEqual(scanner.lastProgress.folders, 3)
+    }
+
+    func testUnlistableRootThrows() {
+        let scanner = DirectoryScanner(lister: { _ in throw CocoaError(.fileReadNoPermission) })
+        XCTAssertThrowsError(try scanner.scan(dir)) { error in
+            XCTAssertTrue(error is FolderUnreadable)
+            XCTAssertNotNil((error as? FolderUnreadable)?.errorDescription)
+        }
+    }
+
+    func testEntryInfoFallsBackToAttributes() throws {
+        try write("d/f.bin", bytes: 1234)
+        let scanner = DirectoryScanner()
+        let folder = scanner.info(dir.appendingPathComponent("d"))
+        XCTAssertTrue(folder.isDirectory)
+        let file = scanner.info(dir.appendingPathComponent("d/f.bin"))
+        XCTAssertFalse(file.isDirectory)
+        XCTAssertEqual(file.size, 1234)
+        XCTAssertEqual(DirectoryScanner.int64(NSNumber(value: 42)), 42)
+        XCTAssertEqual(DirectoryScanner.int64(UInt64(7)), 7)
+        XCTAssertNil(DirectoryScanner.int64("x"))
+    }
+
+    func testDeepRecursion() throws {
+        try write("a/b/c/d/e/f/g/h/deep.mov", bytes: 99)
+        let root = try DirectoryScanner().scan(dir)
+        XCTAssertEqual(root.size, 99)
+        XCTAssertEqual(root.folderCount, 8)
+        XCTAssertEqual(root.node(at: [0, 0, 0, 0, 0, 0, 0, 0, 0])?.name, "deep.mov")
+        XCTAssertEqual(root.children[0].category, .video)
+    }
+
+    func testOldFolderRecordDecodesWithoutUnreadable() throws {
+        let tree = StorageNode.container(id: "/", name: "x", children: [])
+        let record = FolderScanRecord(name: "A", bookmark: Data(), date: Date(timeIntervalSince1970: 0), elapsed: 0, root: tree, isLocal: true)
+        var json = try JSONSerialization.jsonObject(with: JSONFileStore<FolderScanRecord>.encoder.encode(record)) as! [String: Any]
+        json.removeValue(forKey: "unreadable")
+        let data = try JSONSerialization.data(withJSONObject: json)
+        XCTAssertNil(try JSONFileStore<FolderScanRecord>.decoder.decode(FolderScanRecord.self, from: data).unreadable)
+    }
+
     func testScanCanBeCancelled() throws {
         try write("a/b.txt", bytes: 1)
         XCTAssertThrowsError(try DirectoryScanner(isCancelled: { true }).scan(dir)) { error in

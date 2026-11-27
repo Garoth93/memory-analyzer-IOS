@@ -67,16 +67,43 @@ struct SourceExplorer: View {
     var body: some View {
         if let root = model.root(for: source) {
             ExplorerView(source: source, root: root) {
-                if case .folder(let id) = source, let scan = model.folderScans[id] {
-                    ScanProgressCard(
-                        title: "Analisi in corso…",
-                        detail: "\(Fmt.count(scan.progress.done)) file · \(model.bytes(scan.progress.bytes))",
-                        fraction: nil
-                    ) { model.cancelFolderScan(id) }
+                if case .folder(let id) = source {
+                    if let scan = model.folderScans[id] {
+                        ScanProgressCard(
+                            title: "Analisi in corso…",
+                            detail: "\(Fmt.count(scan.progress.done)) file · \(model.bytes(scan.progress.bytes))",
+                            fraction: nil
+                        ) { model.cancelFolderScan(id) }
+                    }
+                    if let count = model.folders.first(where: { $0.id == id })?.unreadable, count > 0 {
+                        UnreadableWarning(count: count)
+                    }
                 }
             }
         } else {
             EmptyStateView(icon: "questionmark.folder.fill", title: "Analisi non disponibile", message: "Questa analisi è stata rimossa.")
+        }
+    }
+}
+
+/// Some subfolders could not be listed by iOS.
+struct UnreadableWarning: View {
+    @Environment(\.m3) private var m3
+    let count: Int
+
+    var body: some View {
+        M3Card(color: m3.warningContainer) {
+            Label {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(Fmt.plural(count, "cartella non leggibile", "cartelle non leggibili"))
+                        .font(.m3TitleSmall)
+                    Text("iOS non ha dato accesso al loro contenuto: compaiono vuote con la scritta “Cartella non leggibile”. Prova ad aggiungere direttamente quella cartella da File.")
+                        .font(.m3BodySmall)
+                }
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill")
+            }
+            .foregroundStyle(m3.onWarningContainer)
         }
     }
 }

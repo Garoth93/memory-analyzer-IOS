@@ -105,8 +105,10 @@ public struct FolderScanRecord: Codable, Equatable, Sendable, Identifiable {
     public var root: StorageNode
     /// True when the folder is on this iPhone (counted in the device map).
     public var isLocal: Bool
+    /// Subfolders that could not be listed (nil in scans saved by 1.0.0).
+    public var unreadable: Int?
 
-    public init(id: UUID = UUID(), name: String, bookmark: Data, date: Date, elapsed: Double, root: StorageNode, isLocal: Bool) {
+    public init(id: UUID = UUID(), name: String, bookmark: Data, date: Date, elapsed: Double, root: StorageNode, isLocal: Bool, unreadable: Int? = nil) {
         self.id = id
         self.name = name
         self.bookmark = bookmark
@@ -114,6 +116,7 @@ public struct FolderScanRecord: Codable, Equatable, Sendable, Identifiable {
         self.elapsed = elapsed
         self.root = root
         self.isLocal = isLocal
+        self.unreadable = unreadable
     }
 }
 

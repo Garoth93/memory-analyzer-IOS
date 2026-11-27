@@ -237,22 +237,27 @@ final class AppModel {
         folderScans[id] = (name, RunningScan(done: 0, total: nil, bytes: 0, current: ""))
         let start = Date()
         Task {
-            let result = await Task.detached(priority: .userInitiated) { () -> Result<StorageNode, Error> in
+            let result = await Task.detached(priority: .userInitiated) { () -> Result<(StorageNode, Int), Error> in
                 let scanner = DirectoryScanner(progress: { p in
                     Task { @MainActor [weak self] in
                         guard let self, self.folderScans[id] != nil else { return }
                         self.folderScans[id] = (name, RunningScan(done: p.files, total: nil, bytes: p.bytes, current: p.current))
                     }
-                }, isCancelled: { flag.isCancelled })
-                do { return .success(try scanner.scan(url, name: name)) } catch { return .failure(error) }
+                }, isCancelled: { flag.isCancelled }, lister: FolderLister.list)
+                do {
+                    let root = try scanner.scan(url, name: name)
+                    return .success((root, scanner.lastProgress.unreadable))
+                } catch {
+                    return .failure(error)
+                }
             }.value
             folderScans[id] = nil
             folderFlags[id] = nil
             switch result {
-            case .success(let root):
+            case .success(let (root, unreadable)):
                 let record = FolderScanRecord(
                     id: id, name: name, bookmark: bookmark, date: Date(), elapsed: Date().timeIntervalSince(start),
-                    root: root, isLocal: FolderLocation.isLocal(path: url.path)
+                    root: root, isLocal: FolderLocation.isLocal(path: url.path), unreadable: unreadable
                 )
                 if let i = folders.firstIndex(where: { $0.id == id }) {
                     folders[i] = record
@@ -261,7 +266,11 @@ final class AppModel {
                 }
                 folders.sort { $0.root.size > $1.root.size }
                 saveFolder(record)
-                showToast("\(name): \(Fmt.bytes(root.size, units: settings.units))", icon: "checkmark.circle.fill", style: .success)
+                if unreadable > 0 {
+                    showToast("\(name): \(Fmt.plural(unreadable, "cartella non leggibile", "cartelle non leggibili"))", icon: "exclamationmark.triangle.fill", style: .error)
+                } else {
+                    showToast("\(name): \(Fmt.bytes(root.size, units: settings.units))", icon: "checkmark.circle.fill", style: .success)
+                }
             case .failure(let error):
                 if !folders.contains(where: { $0.id == id }) { FolderAccess.forget(id) }
                 if error is ScanCancelled {

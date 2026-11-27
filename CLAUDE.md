@@ -58,6 +58,13 @@ MemoryAnalyzer ("Memoria" sulla Home): analizzatore dello spazio in stile
   (`FolderAccess`), scansione ricorsiva con `DirectoryScanner` (package,
   Foundation, testato su Linux) con dimensione logica e allocata. Anteprima
   Quick Look, condivisione, eliminazione di file e cartelle.
+  Le cartelle dei File Provider (iCloud Drive, "Sul mio iPhone", Drive…)
+  possono avere valori mancanti o non essere ancora "materializzate": lo
+  scanner ricade su `attributesOfItem`/`fileExists` per capire se una voce è
+  una cartella, e l'app gli passa `FolderLister` che, se l'elenco diretto
+  fallisce o è vuoto, rilegge dentro `NSFileCoordinator`. Le cartelle che
+  restano illeggibili sono marcate (`DirectoryScanner.unreadableDetail`) e
+  contate in `FolderScanRecord.unreadable` (avviso nell'app).
 - **Esploratore** (`ExplorerView`, comune a Foto e Cartelle): breadcrumb,
   intestazione con dimensione e percentuali, mappa `TreemapView` (Canvas,
   fino a 4 livelli annidati, effetto cuscino, etichette, colori per tipo o per

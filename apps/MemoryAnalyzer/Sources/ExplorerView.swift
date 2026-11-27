@@ -218,7 +218,7 @@ struct ExplorerView<Header: View>: View {
                     VStack(spacing: 8) {
                         Image(systemName: "square.dashed")
                             .font(.system(size: 34, weight: .light))
-                        Text(node.children.isEmpty ? "Vuoto" : "Nessun dato")
+                        Text(node.detail ?? (node.children.isEmpty ? "Vuoto" : "Nessun dato"))
                             .font(.m3TitleSmall)
                     }
                     .foregroundStyle(m3.onSurfaceVariant)
@@ -468,7 +468,6 @@ struct ExplorerView<Header: View>: View {
             selection = LeafSelection(node: child, location: location(of: validPath))
             return
         }
-        guard child.size > 0 else { return }
         let r = rect ?? childRect(in: node, index: index)
         let w = max(1, mapSize.width), h = max(1, mapSize.height)
         let start = ZoomTransform(sx: max(0.01, r.width / w), sy: max(0.01, r.height / h), tx: r.minX, ty: r.minY)
@@ -616,6 +615,7 @@ struct NodeRow: View {
     private var subtitle: String {
         if let subtitleOverride { return subtitleOverride }
         if node.isContainer {
+            if let detail = node.detail { return detail }
             var s = Fmt.plural(node.fileCount, "elemento", "elementi")
             if let d = node.modified { s += " · " + Fmt.date(d) }
             return s

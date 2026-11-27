@@ -150,6 +150,11 @@ struct FolderCard: View {
                         Text("\(Fmt.plural(record.root.fileCount, "file", "file")) · \(Fmt.plural(record.root.folderCount, "cartella", "cartelle"))")
                             .font(.m3BodySmall)
                             .foregroundStyle(m3.onSurfaceVariant)
+                        if let n = record.unreadable, n > 0 {
+                            Label(Fmt.plural(n, "non leggibile", "non leggibili"), systemImage: "exclamationmark.triangle.fill")
+                                .font(.m3LabelSmall)
+                                .foregroundStyle(m3.warning)
+                        }
                     }
                     Spacer()
                     if scanning {
